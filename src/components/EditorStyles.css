@@ -1,0 +1,128 @@
+/* components/EditorStyles.css */
+
+/* アプリ全体の背景 */
+body {
+    background-color: #f3f3f3;
+    margin: 0;
+    font-family: sans-serif;
+}
+
+.editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* ツールバー */
+.toolbar {
+    background: #fff;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.toolbar button {
+    padding: 5px 10px;
+    cursor: pointer;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.toolbar button:hover {
+    background-color: #eee;
+}
+
+.toolbar button.is-active {
+    background-color: #333;
+    color: #fff;
+}
+
+/* エディタ部分（A4用紙風） */
+.editor-content-wrapper {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.ProseMirror {
+    background: white;
+    width: 210mm;
+    /* A4幅 */
+    min-height: 297mm;
+    padding: 20mm;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    outline: none;
+    box-sizing: border-box;
+}
+
+.ProseMirror p {
+    margin-top: 0;
+    line-height: 1.6;
+}
+
+/* --- 以下を追記 --- */
+
+/* メニューバー（最上部） */
+.menu-bar {
+    background-color: #f3f3f3;
+    padding: 5px 10px;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 15px;
+    font-size: 14px;
+}
+
+.menu-item {
+    position: relative;
+    /* ドロップダウンの基準点 */
+}
+
+/* "File" などのボタン */
+.menu-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+.menu-trigger:hover {
+    background-color: #e0e0e0;
+}
+
+/* ドロップダウンメニュー本体 */
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    min-width: 150px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    padding: 5px 0;
+}
+
+.dropdown-menu button {
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 14px;
+    width: 100%;
+}
+
+.dropdown-menu button:hover {
+    background-color: #f0f0f0;
+}
