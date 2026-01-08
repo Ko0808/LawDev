@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { FontFamily } from '@tiptap/extension-font-family'
+import { Color } from '@tiptap/extension-color'
 import { FontSize } from './FontSize'
 import { useState } from 'react'
 import './EditorStyles.css'
@@ -18,8 +19,7 @@ const TiptapEditor = () => {
 
     // エディタ設定
     const editor = useEditor({
-        extensions: [StarterKit, TextStyle, FontFamily, FontSize],
-        content: '<p>ここに入力してください...</p>',
+        extensions: [StarterKit, TextStyle, FontFamily, Color, FontSize], content: '<p>ここに入力してください...</p>',
         onTransaction: () => forceUpdate((n) => n + 1),
     })
 
@@ -228,6 +228,15 @@ const TiptapEditor = () => {
                     <option value="20">20px</option>
                     <option value="24">24px</option>
                 </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <input
+                        type="color"
+                        onInput={(e) => editor.chain().focus().setColor(e.currentTarget.value).run()}
+                        value={editor.getAttributes('textStyle').color || '#000000'}
+                        style={{ height: '30px', width: '30px', cursor: 'pointer', padding: '0', border: 'none', background: 'none' }}
+                        title="文字色を変更"
+                    />
+                </div>
 
                 <div className="divider" style={{ width: '1px', background: '#ccc', margin: '0 10px' }}></div>
 
