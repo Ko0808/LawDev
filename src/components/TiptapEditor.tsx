@@ -16,6 +16,8 @@ const TiptapEditor = () => {
     const [isVertical, setIsVertical] = useState(false)
     const [gridSettings, setGridSettings] = useState({ chars: 35, lines: 22 })
     const [showSettingsModal, setShowSettingsModal] = useState(false)
+    // grid: マス目, line: 下線, outline: 外枠のみ, none: 設定なし
+    const [genkoMode, setGenkoMode] = useState<'none' | 'grid' | 'line' | 'outline'>('line')
 
     // エディタ設定
     const editor = useEditor({
@@ -114,6 +116,67 @@ const TiptapEditor = () => {
 
     const currentFontSize = editor ? (parseInt(editor.getAttributes('textStyle').fontSize) || 16) : 16
     const lineHeightRatio = 1.75
+    const lineHeightPx = currentFontSize * lineHeightRatio
+
+    const getGenkoBackground = () => {
+        // 色の設定 (線の色)
+        const lineColor = '#e0e0e0'
+        const outlineColor = '#ccc'
+
+        switch (genkoMode) {
+            case 'grid': // マス目 (Masume)
+                if (isVertical) {
+                    // 縦書きのマス目: 横線(1文字ごと) + 縦線(行ごと)
+                    return {
+                        backgroundImage: `
+                            linear-gradient(to bottom, ${lineColor} 1px, transparent 1px),
+                            linear-gradient(to left, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)
+                        `,
+                        backgroundSize: `100% ${currentFontSize}px, ${lineHeightPx}px 100%`,
+                        border: `1px solid ${outlineColor}`
+                    }
+                } else {
+                    // 横書きのマス目: 縦線(1文字ごと) + 横線(行ごと)
+                    return {
+                        backgroundImage: `
+                            linear-gradient(to right, ${lineColor} 1px, transparent 1px),
+                            linear-gradient(to bottom, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)
+                        `,
+                        backgroundSize: `${currentFontSize}px 100%, 100% ${lineHeightPx}px`,
+                        border: `1px solid ${outlineColor}`
+                    }
+                }
+
+            case 'line': // 下線/縦線 (Existing)
+                if (isVertical) {
+                    return {
+                        backgroundImage: `repeating-linear-gradient(to left, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)`,
+                        border: `1px solid ${outlineColor}` // 外枠もあったほうが綺麗
+                    }
+                } else {
+                    return {
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)`,
+                        border: `1px solid ${outlineColor}`
+                    }
+                }
+
+            case 'outline': // 外枠のみ (Outline Only)
+                return {
+                    backgroundImage: 'none',
+                    border: `1px solid ${outlineColor}`
+                }
+
+            case 'none': // 原稿用紙設定なし (Non-Genko)
+            default:
+                return {
+                    backgroundImage: 'none',
+                    border: 'none'
+                }
+        }
+    }
+
+    // スタイルを取得
+    const backgroundStyle = getGenkoBackground()
 
     // 原稿エリア（版面）のサイズ計算
     const editorStyle = isVertical
@@ -198,6 +261,14 @@ const TiptapEditor = () => {
                             <button onClick={() => setDirection(false)}>横書き (Horizontal)</button>
                             <button onClick={() => setDirection(true)}>縦書き (Vertical)</button>
                             <hr style={{ margin: '5px 0', border: 'none', borderTop: '1px solid #eee' }} />
+                            {/* ★追加: 原稿用紙モード選択 */}
+                            <div style={{ padding: '5px 15px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>Grid Style</div>
+                            <button onClick={() => { setGenkoMode('grid'); closeMenu(); }}>マス目 (Grid)</button>
+                            <button onClick={() => { setGenkoMode('line'); closeMenu(); }}>下線 (Line)</button>
+                            <button onClick={() => { setGenkoMode('outline'); closeMenu(); }}>外枠 (Outline)</button>
+                            <button onClick={() => { setGenkoMode('none'); closeMenu(); }}>なし (None)</button>
+
+                            <hr style={{ margin: '5px 0', border: 'none', borderTop: '1px solid #eee' }} />
                             <button onClick={() => { setShowSettingsModal(true); closeMenu() }}>ページ設定 (Page Setup)...</button>
                         </div>
                     )}
@@ -255,8 +326,8 @@ const TiptapEditor = () => {
                     <div
                         className="editor-layout-area"
                         style={{
-                            ...editorStyle,    // 版面のサイズと配置
-                            ...gridBackground, // グリッド線
+                            ...editorStyle,     // サイズ計算
+                            ...backgroundStyle, // ★ここで背景と枠線を適用
                             fontFamily: '"MS Gothic", "Courier New", monospace',
                             lineHeight: lineHeightRatio,
                         }}
