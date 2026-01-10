@@ -21,7 +21,8 @@ const TiptapEditor = () => {
 
     // エディタ設定
     const editor = useEditor({
-        extensions: [StarterKit, TextStyle, FontFamily, Color, FontSize], content: '<p>ここに入力してください...</p>',
+        extensions: [StarterKit, TextStyle, FontFamily, Color, FontSize],
+        content: '<p>ここに入力してください...</p>',
         onTransaction: () => forceUpdate((n) => n + 1),
     })
 
@@ -31,7 +32,7 @@ const TiptapEditor = () => {
     }
     const closeMenu = () => setActiveMenu(null)
 
-    // --- ファイル操作 (復活！) ---
+    // --- ファイル操作 ---
 
     // 上書き保存
     const handleSave = async () => {
@@ -57,7 +58,6 @@ const TiptapEditor = () => {
         closeMenu()
 
         // @ts-ignore
-        // 第2引数を渡さないことで強制的にダイアログを出す
         const result = await window.api.saveFile(content)
 
         if (result.success) {
@@ -114,39 +114,58 @@ const TiptapEditor = () => {
 
     // --- スタイル計算 ---
 
-    const currentFontSize = editor ? (parseInt(editor.getAttributes('textStyle').fontSize) || 16) : 16
+    // A4用紙の有効領域サイズ定義 (mm -> px 換算: 96dpi / 1mm ≒ 3.78px)
+    const MM_TO_PX = 3.78
+    // 横書きのときの行の長さ: 約165mm (A4幅210mm - 左右余白)
+    const CONTENT_WIDTH_PX = 165 * MM_TO_PX
+    // 縦書きのときの行の長さ: 約245mm (A4高さ297mm - 上下余白)
+    const CONTENT_HEIGHT_PX = 245 * MM_TO_PX
+
+    const isGenkoMode = genkoMode !== 'none'
+    const editorFontSize = editor ? (parseInt(editor.getAttributes('textStyle').fontSize) || 16) : 16
     const cellPadding = 6
-    const cellSize = currentFontSize + cellPadding
+
+    // ★文字サイズの自動計算ロジック
+    // 原稿用紙モードのときは「設定された文字数」に合わせてフォントサイズを逆算する
+    let effectiveFontSize = editorFontSize
+    if (isGenkoMode) {
+        const targetLength = isVertical ? CONTENT_HEIGHT_PX : CONTENT_WIDTH_PX
+        const calculatedCellSize = targetLength / gridSettings.chars
+        // 文字サイズ = 計算されたマスサイズ - 余白 (小数を切り捨て)
+        effectiveFontSize = Math.floor(calculatedCellSize - cellPadding)
+    }
+
+    const cellSize = effectiveFontSize + cellPadding
     const lineHeightRatio = 1.75
-    const lineHeightPx = Math.max(currentFontSize * lineHeightRatio, cellSize + 2)
+    const lineHeightPx = Math.max(effectiveFontSize * lineHeightRatio, cellSize + 2)
+
     const getGenkoBackground = () => {
         // 画像に合わせた緑色系の設定
-        // #c8e6c9 は薄い緑色です。お好みで変更してください。
-        const lineColor = '#8bc34a' // URLエンコードした #8bc34a (Light Green)
+        const lineColor = '#8bc34a'
         const outlineColor = '#ccc'
+
+        // 視覚的な位置合わせ（文字が少し上に寄って見えるのを補正）
         const adjustmentY = -2
 
         switch (genkoMode) {
             case 'grid': // マス目 (Grid)
-                // 文字サイズちょうどの正方形
+                // マス目は隙間なく敷き詰める（cellSizeを使用）
                 const boxSize = cellSize
                 const halfPad = cellPadding / 2
-
 
                 // SVGパターンの生成
                 let svgString = ''
                 let bgSize = ''
 
                 if (isVertical) {
-                    // ■ 縦書き用: 横に広いタイル（行間を含む）、縦は1文字分
-                    // タイルサイズ: 幅=行の高さ, 高さ=文字サイズ
+                    // ■ 縦書き用
                     const width = lineHeightPx
                     const height = cellSize
 
-                    // 正方形を中央（行の真ん中）に配置
-                    // x = (行の高さ - 文字サイズ) / 2
-                    const offsetX = (lineHeightPx - currentFontSize) / 2
+                    // マスを行の真ん中に配置するための計算
+                    const offsetX = (lineHeightPx - cellSize) / 2
 
+                    // 縦方向(y)は0にして隙間なく並べる
                     svgString = `
                         <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
                             <rect x="${offsetX}" y="0" width="${boxSize}" height="${boxSize}" 
@@ -155,15 +174,14 @@ const TiptapEditor = () => {
                     `
                     bgSize = `${lineHeightPx}px ${cellSize}px`
                 } else {
-                    // ■ 横書き用: 縦に長いタイル（行間を含む）、横は1文字分
-                    // タイルサイズ: 幅=文字サイズ, 高さ=行の高さ
+                    // ■ 横書き用
                     const width = cellSize
                     const height = lineHeightPx
 
-                    // 正方形を中央（行の真ん中）に配置
-                    // y = (行の高さ - 文字サイズ) / 2
-                    const offsetY = (lineHeightPx - currentFontSize) / 2
+                    // マスを行の真ん中に配置するための計算
+                    const offsetY = (lineHeightPx - cellSize) / 2
 
+                    // 横方向(x)は0にして隙間なく並べる
                     svgString = `
                         <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
                             <rect x="0" y="${offsetY}" width="${boxSize}" height="${boxSize}" 
@@ -173,23 +191,20 @@ const TiptapEditor = () => {
                     bgSize = `${cellSize}px ${lineHeightPx}px`
                 }
 
-                // SVGをDataURIに変換 (改行を削除してエンコード)
+                // SVGをDataURIに変換
                 const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svgString.replace(/\s+/g, ' ').trim())}`
 
                 return {
                     backgroundImage: `url("${svgDataUrl}")`,
                     backgroundSize: bgSize,
+                    // 背景全体をずらして文字を中央に見せる補正
                     backgroundPosition: isVertical
-                        // 縦書き: 元々のズレ(-halfPad) に adjustmentY を足す (例: -3 + -2 = -5px)
                         ? `right top ${-halfPad + adjustmentY}px`
-
-                        // 横書き: top(0) の位置に adjustmentY を足す (例: -2px)
                         : `left -${halfPad}px top ${adjustmentY}px`,
                     border: `1px solid ${outlineColor}`
                 }
 
             case 'line': // 下線/縦線
-                // 色設定 (SVGじゃないので # のままでOK)
                 const cssLineColor = '#e0e0e0'
                 if (isVertical) {
                     return {
@@ -220,6 +235,13 @@ const TiptapEditor = () => {
 
     // スタイルを取得
     const backgroundStyle = getGenkoBackground()
+    // グリッド背景（薄いガイド線）の生成
+    const gridBackground = {
+        backgroundImage: isVertical
+            ? `repeating-linear-gradient(to left, transparent, transparent ${effectiveFontSize * lineHeightRatio - 1}px, #e0e0e0 ${effectiveFontSize * lineHeightRatio}px)`
+            : `repeating-linear-gradient(to bottom, transparent, transparent ${effectiveFontSize * lineHeightRatio - 1}px, #e0e0e0 ${effectiveFontSize * lineHeightRatio}px)`,
+        backgroundAttachment: 'local',
+    }
 
     // 原稿エリア（版面）のサイズ計算
     const editorStyle = isVertical
@@ -227,13 +249,14 @@ const TiptapEditor = () => {
             // ■ 縦書き設定
             writingMode: 'vertical-rl' as const,
             height: `${cellSize * gridSettings.chars}px`,
-            minWidth: `${lineHeightPx * gridSettings.lines}px`, // width -> minWidthに変更済みの箇所
+            minWidth: `${lineHeightPx * gridSettings.lines}px`,
             letterSpacing: `${cellPadding}px`,
 
-            // ★ここを変更！ 中央寄せをやめて「右寄せ」にする
-            // 上:50px, 右:50px, 下:50px, 左:auto (これで右に張り付く)
-            margin: '50px 50px 50px auto',
+            // フォントサイズを強制適用
+            fontSize: `${effectiveFontSize}px`,
 
+            // 右寄せ設定
+            margin: '50px 50px 50px auto',
             padding: '0',
             wordBreak: 'break-all' as const,
         }
@@ -241,21 +264,16 @@ const TiptapEditor = () => {
             // ■ 横書き設定
             writingMode: 'horizontal-tb' as const,
             width: `${cellSize * gridSettings.chars}px`,
-            minHeight: `${lineHeightPx * gridSettings.lines}px`, // height -> minHeightに変更済みの箇所
+            minHeight: `${lineHeightPx * gridSettings.lines}px`,
             letterSpacing: `${cellPadding}px`,
-            // 横書きは中央寄せでOK
-            margin: '50px auto',
 
+            // フォントサイズを強制適用
+            fontSize: `${effectiveFontSize}px`,
+
+            margin: '50px auto',
             padding: '0',
             wordBreak: 'break-all' as const,
         }
-
-    const gridBackground = {
-        backgroundImage: isVertical
-            ? `repeating-linear-gradient(to left, transparent, transparent ${currentFontSize * lineHeightRatio - 1}px, #e0e0e0 ${currentFontSize * lineHeightRatio}px)`
-            : `repeating-linear-gradient(to bottom, transparent, transparent ${currentFontSize * lineHeightRatio - 1}px, #e0e0e0 ${currentFontSize * lineHeightRatio}px)`,
-        backgroundAttachment: 'local',
-    }
 
     if (!editor) return null
 
@@ -301,11 +319,12 @@ const TiptapEditor = () => {
                 <div className="menu-item">
                     <button className={`menu-trigger ${activeMenu === 'layout' ? 'active' : ''}`} onClick={() => toggleMenu('layout')}>Layout</button>
                     {activeMenu === 'layout' && (
-                        <div className="dropdown-menu">
+                        <div className="dropdown-menu" style={{ width: '220px' }}>
                             <button onClick={() => setDirection(false)}>横書き (Horizontal)</button>
                             <button onClick={() => setDirection(true)}>縦書き (Vertical)</button>
                             <hr style={{ margin: '5px 0', border: 'none', borderTop: '1px solid #eee' }} />
-                            {/* ★追加: 原稿用紙モード選択 */}
+
+                            {/* 原稿用紙モード選択 */}
                             <div style={{ padding: '5px 15px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>Grid Style</div>
                             <button onClick={() => { setGenkoMode('grid'); closeMenu(); }}>マス目 (Grid)</button>
                             <button onClick={() => { setGenkoMode('line'); closeMenu(); }}>下線 (Line)</button>
@@ -335,14 +354,23 @@ const TiptapEditor = () => {
                 <select
                     className="toolbar-select"
                     onChange={(e) => editor.chain().focus().setFontSize(e.target.value).run()}
-                    value={editor.getAttributes('textStyle').fontSize || ''}
+                    // 原稿用紙モードのときは、計算された effectiveFontSize を表示する
+                    value={isGenkoMode ? effectiveFontSize.toString() : (editor.getAttributes('textStyle').fontSize || '')}
+                    disabled={isGenkoMode}
+                    style={{
+                        opacity: isGenkoMode ? 0.6 : 1,
+                        cursor: isGenkoMode ? 'not-allowed' : 'pointer',
+                        backgroundColor: isGenkoMode ? '#f0f0f0' : 'white'
+                    }}
                 >
                     <option value="" disabled>Size</option>
-                    <option value="16">16px (推奨)</option>
                     <option value="12">12px</option>
+                    <option value="16">16px</option>
                     <option value="20">20px</option>
                     <option value="24">24px</option>
+                    {isGenkoMode && <option value={effectiveFontSize}>{effectiveFontSize}px (Auto)</option>}
                 </select>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     <input
                         type="color"
@@ -361,7 +389,8 @@ const TiptapEditor = () => {
             </div>
 
             {/* --- 作業エリア (Workspace) --- */}
-            <div className="editor-workspace" onClick={closeMenu}>
+            {/* 縦書きモードの時にクラスを追加して方向を制御 */}
+            <div className={`editor-workspace ${isVertical ? 'vertical-mode' : ''}`} onClick={closeMenu}>
 
                 {/* 紙 (Paper) */}
                 <div className="editor-paper">
@@ -371,7 +400,7 @@ const TiptapEditor = () => {
                         className="editor-layout-area"
                         style={{
                             ...editorStyle,     // サイズ計算
-                            ...backgroundStyle, // ★ここで背景と枠線を適用
+                            ...backgroundStyle, // 原稿用紙の背景と枠線
                             fontFamily: '"MS Gothic", "Courier New", monospace',
                             lineHeight: lineHeightRatio,
                         }}
