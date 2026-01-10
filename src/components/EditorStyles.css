@@ -9,19 +9,35 @@ body {
 .editor-container {
     display: flex;
     flex-direction: column;
+    width: 100vw;
     height: 100vh;
-    overflow: visible;
-    /* 全体のスクロールは禁止（ワークスペースだけスクロールさせる） */
+
+    /* ★修正: visible から hidden に変更 */
+    /* これでアプリの外側にはみ出すのを防ぎます */
+    overflow: hidden;
 }
 
 .editor-workspace {
     flex: 1;
     background-color: #f3f3f3;
-    overflow: visible;
+
+    /* ★修正: visible から auto に変更 */
+    /* これで「このエリアの中で」スクロールバーが出るようになります */
+    overflow: auto;
+
+    justify-content: center;
+    align-items: flex-start;
 
     display: flex;
-    justify-content: center;
+    min-height: 0;
     padding: 30px 0;
+}
+
+.editor-workspace.vertical-mode {
+    direction: rtl;
+    /* スクロールバーを左に */
+    justify-content: flex-start;
+    /* RTLなので「右側」がスタート地点になる */
 }
 
 /* ツールバー */
@@ -29,7 +45,6 @@ body {
     background: #fff;
     padding: 10px;
     border-bottom: 1px solid #ccc;
-    display: flex;
     gap: 10px;
     position: sticky;
     top: 0;
@@ -59,14 +74,21 @@ body {
 /* 1. 紙 (Paper): A4サイズ固定の白い箱 */
 .editor-paper {
     background-color: white;
-    width: 210mm;
+
+    /* 中身（文字数・行数）に合わせてサイズが決まるようにする */
+    display: inline-block;
+
+    /* ※JS側で計算している場合はそちらが優先されますが、念のため */
+    min-width: 210mm;
     min-height: 297mm;
+
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
     position: relative;
     overflow: visible;
-    cursor: text;
-
     flex-shrink: 0;
+
+    /* 余白リセット */
+    margin: 0;
 }
 
 /* 2. 版面 (Layout Area): 設定した文字数・行数分のサイズを持つエリア */
@@ -100,13 +122,24 @@ body {
 /* ---------------------------------------------------------
    メニューバー・モーダルなど (変更なし)
 --------------------------------------------------------- */
+.menu-bar,
+.toolbar {
+    /* 幅いっぱいにする */
+    width: 100%;
+
+    /* 中身は左揃え */
+    display: flex;
+    justify-content: flex-start;
+    /* 左寄せ */
+    box-sizing: border-box;
+    /* paddingを含めて幅計算 */
+}
 
 /* メニューバー */
 .menu-bar {
     background-color: #f3f3f3;
     padding: 5px 10px;
     border-bottom: 1px solid #ccc;
-    display: flex;
     gap: 15px;
     font-size: 14px;
 }
