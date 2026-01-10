@@ -115,58 +115,101 @@ const TiptapEditor = () => {
     // --- スタイル計算 ---
 
     const currentFontSize = editor ? (parseInt(editor.getAttributes('textStyle').fontSize) || 16) : 16
+    const cellPadding = 6
+    const cellSize = currentFontSize + cellPadding
     const lineHeightRatio = 1.75
-    const lineHeightPx = currentFontSize * lineHeightRatio
-
+    const lineHeightPx = Math.max(currentFontSize * lineHeightRatio, cellSize + 2)
     const getGenkoBackground = () => {
-        // 色の設定 (線の色)
-        const lineColor = '#e0e0e0'
+        // 画像に合わせた緑色系の設定
+        // #c8e6c9 は薄い緑色です。お好みで変更してください。
+        const lineColor = '#8bc34a' // URLエンコードした #8bc34a (Light Green)
         const outlineColor = '#ccc'
+        const adjustmentY = -2
 
         switch (genkoMode) {
-            case 'grid': // マス目 (Masume)
+            case 'grid': // マス目 (Grid)
+                // 文字サイズちょうどの正方形
+                const boxSize = cellSize
+                const halfPad = cellPadding / 2
+
+
+                // SVGパターンの生成
+                let svgString = ''
+                let bgSize = ''
+
                 if (isVertical) {
-                    // 縦書きのマス目: 横線(1文字ごと) + 縦線(行ごと)
+                    // ■ 縦書き用: 横に広いタイル（行間を含む）、縦は1文字分
+                    // タイルサイズ: 幅=行の高さ, 高さ=文字サイズ
+                    const width = lineHeightPx
+                    const height = cellSize
+
+                    // 正方形を中央（行の真ん中）に配置
+                    // x = (行の高さ - 文字サイズ) / 2
+                    const offsetX = (lineHeightPx - currentFontSize) / 2
+
+                    svgString = `
+                        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="${offsetX}" y="0" width="${boxSize}" height="${boxSize}" 
+                                  fill="none" stroke="${lineColor}" stroke-width="1"/>
+                        </svg>
+                    `
+                    bgSize = `${lineHeightPx}px ${cellSize}px`
+                } else {
+                    // ■ 横書き用: 縦に長いタイル（行間を含む）、横は1文字分
+                    // タイルサイズ: 幅=文字サイズ, 高さ=行の高さ
+                    const width = cellSize
+                    const height = lineHeightPx
+
+                    // 正方形を中央（行の真ん中）に配置
+                    // y = (行の高さ - 文字サイズ) / 2
+                    const offsetY = (lineHeightPx - currentFontSize) / 2
+
+                    svgString = `
+                        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0" y="${offsetY}" width="${boxSize}" height="${boxSize}" 
+                                  fill="none" stroke="${lineColor}" stroke-width="1"/>
+                        </svg>
+                    `
+                    bgSize = `${cellSize}px ${lineHeightPx}px`
+                }
+
+                // SVGをDataURIに変換 (改行を削除してエンコード)
+                const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svgString.replace(/\s+/g, ' ').trim())}`
+
+                return {
+                    backgroundImage: `url("${svgDataUrl}")`,
+                    backgroundSize: bgSize,
+                    backgroundPosition: isVertical
+                        // 縦書き: 元々のズレ(-halfPad) に adjustmentY を足す (例: -3 + -2 = -5px)
+                        ? `right top ${-halfPad + adjustmentY}px`
+
+                        // 横書き: top(0) の位置に adjustmentY を足す (例: -2px)
+                        : `left -${halfPad}px top ${adjustmentY}px`,
+                    border: `1px solid ${outlineColor}`
+                }
+
+            case 'line': // 下線/縦線
+                // 色設定 (SVGじゃないので # のままでOK)
+                const cssLineColor = '#e0e0e0'
+                if (isVertical) {
                     return {
-                        backgroundImage: `
-                            linear-gradient(to bottom, ${lineColor} 1px, transparent 1px),
-                            linear-gradient(to left, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)
-                        `,
-                        backgroundSize: `100% ${currentFontSize}px, ${lineHeightPx}px 100%`,
+                        backgroundImage: `repeating-linear-gradient(to left, transparent, transparent ${lineHeightPx - 1}px, ${cssLineColor} ${lineHeightPx}px)`,
                         border: `1px solid ${outlineColor}`
                     }
                 } else {
-                    // 横書きのマス目: 縦線(1文字ごと) + 横線(行ごと)
                     return {
-                        backgroundImage: `
-                            linear-gradient(to right, ${lineColor} 1px, transparent 1px),
-                            linear-gradient(to bottom, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)
-                        `,
-                        backgroundSize: `${currentFontSize}px 100%, 100% ${lineHeightPx}px`,
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${lineHeightPx - 1}px, ${cssLineColor} ${lineHeightPx}px)`,
                         border: `1px solid ${outlineColor}`
                     }
                 }
 
-            case 'line': // 下線/縦線 (Existing)
-                if (isVertical) {
-                    return {
-                        backgroundImage: `repeating-linear-gradient(to left, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)`,
-                        border: `1px solid ${outlineColor}` // 外枠もあったほうが綺麗
-                    }
-                } else {
-                    return {
-                        backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${lineHeightPx - 1}px, ${lineColor} ${lineHeightPx}px)`,
-                        border: `1px solid ${outlineColor}`
-                    }
-                }
-
-            case 'outline': // 外枠のみ (Outline Only)
+            case 'outline': // 外枠のみ
                 return {
                     backgroundImage: 'none',
                     border: `1px solid ${outlineColor}`
                 }
 
-            case 'none': // 原稿用紙設定なし (Non-Genko)
+            case 'none': // 設定なし
             default:
                 return {
                     backgroundImage: 'none',
@@ -183,8 +226,9 @@ const TiptapEditor = () => {
         ? {
             // ■ 縦書き設定
             writingMode: 'vertical-rl' as const,
-            height: `${currentFontSize * gridSettings.chars}px`,
-            width: `${currentFontSize * lineHeightRatio * gridSettings.lines}px`,
+            height: `${cellSize * gridSettings.chars}px`,
+            minWidth: `${lineHeightPx * gridSettings.lines}px`, // width -> minWidthに変更済みの箇所
+            letterSpacing: `${cellPadding}px`,
 
             // ★ここを変更！ 中央寄せをやめて「右寄せ」にする
             // 上:50px, 右:50px, 下:50px, 左:auto (これで右に張り付く)
@@ -196,9 +240,9 @@ const TiptapEditor = () => {
         : {
             // ■ 横書き設定
             writingMode: 'horizontal-tb' as const,
-            width: `${currentFontSize * gridSettings.chars}px`,
-            minHeight: `${currentFontSize * lineHeightRatio * gridSettings.lines}px`,
-
+            width: `${cellSize * gridSettings.chars}px`,
+            minHeight: `${lineHeightPx * gridSettings.lines}px`, // height -> minHeightに変更済みの箇所
+            letterSpacing: `${cellPadding}px`,
             // 横書きは中央寄せでOK
             margin: '50px auto',
 
