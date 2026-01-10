@@ -29,7 +29,9 @@ function createWindow() {
       preload: join(__dirname, 'preload.mjs'),
     },
   })
+  //デバッグ用検証表示コマンド使わないときはコメントアウト
   win?.webContents.openDevTools()
+
   win.setMenu(null) // Hide default menu
 
   // Test active push message to Renderer-process.
