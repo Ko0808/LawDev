@@ -14,9 +14,8 @@ const TiptapEditor = () => {
     const [, forceUpdate] = useState(0)
     const [currentPath, setCurrentPath] = useState<string | null>(null)
     const [isVertical, setIsVertical] = useState(false)
-    const [gridSettings, setGridSettings] = useState({ chars: 35, lines: 22 })
+    const [gridSettings, setGridSettings] = useState({ chars: 20, lines: 20 })
     const [showSettingsModal, setShowSettingsModal] = useState(false)
-    // grid: マス目, line: 下線, outline: 外枠のみ, none: 設定なし
     const [genkoMode, setGenkoMode] = useState<'none' | 'grid' | 'line' | 'outline'>('line')
 
     // エディタ設定
@@ -33,7 +32,6 @@ const TiptapEditor = () => {
     const closeMenu = () => setActiveMenu(null)
 
     // --- ファイル操作 ---
-
     const handleSave = async () => {
         if (!editor) return
         const content = JSON.stringify(editor.getJSON())
@@ -80,7 +78,6 @@ const TiptapEditor = () => {
     }
 
     // --- レイアウト設定 ---
-
     const setDirection = (vertical: boolean) => {
         setIsVertical(vertical)
         closeMenu()
@@ -89,68 +86,93 @@ const TiptapEditor = () => {
     const applyGridSettings = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         const formData = new FormData(e.currentTarget)
-        setGridSettings({
-            chars: Number(formData.get('chars')),
-            lines: Number(formData.get('lines')),
-        })
+
+        if (genkoMode === 'grid') {
+            const preset = formData.get('gridPreset') as string
+            const [chars, lines] = preset.split('x').map(Number)
+            setGridSettings({ chars, lines })
+        } else {
+            setGridSettings({
+                chars: Number(formData.get('chars')),
+                lines: Number(formData.get('lines')),
+            })
+        }
+
         setShowSettingsModal(false)
         closeMenu()
     }
 
-    // --- スタイル計算 ---
+    // --- スタイル計算 (修正版: 行間計算の追加) ---
 
-    // 1. A4用紙の有効領域サイズ (mm -> px)
     const MM_TO_PX = 3.78
-    const CONTENT_WIDTH_PX = 165 * MM_TO_PX // 横書き時の幅
-    const CONTENT_HEIGHT_PX = 245 * MM_TO_PX // 縦書き時の高さ
+    // 用紙の有効領域（余白を除いた描画可能エリア）
+    const MAX_CONTENT_WIDTH_PX = 165 * MM_TO_PX
+    const MAX_CONTENT_HEIGHT_PX = 245 * MM_TO_PX
 
     const isGenkoMode = genkoMode !== 'none'
     const userFontSize = editor ? (parseInt(editor.getAttributes('textStyle').fontSize) || 16) : 16
-    const cellPadding = 6 // 文字と枠の間の最低余白
+    const cellPadding = 6
 
-    // 2. 「両端揃え」のための計算
-    let exactCellSize = userFontSize + cellPadding
+    // 1. マス目サイズ（文字方向のサイズ）
+    // 横書きなら幅÷文字数、縦書きなら高さ÷文字数
+    let cellSizeInt = userFontSize + cellPadding
 
     if (isGenkoMode) {
-        const targetLength = isVertical ? CONTENT_HEIGHT_PX : CONTENT_WIDTH_PX
-        exactCellSize = targetLength / gridSettings.chars
+        const targetLength = isVertical ? MAX_CONTENT_HEIGHT_PX : MAX_CONTENT_WIDTH_PX
+        cellSizeInt = Math.floor(targetLength / gridSettings.chars)
     }
 
-    // 3. フォントサイズと文字間隔の決定
+    // 2. 行の高さ（行送り方向のサイズ）★ここが重要
+    // 横書きなら高さ÷行数、縦書きなら幅÷行数
+    let lineHeightPx = Math.floor(Math.max(cellSizeInt * 1.75, cellSizeInt + 2))
+
+    if (isGenkoMode) {
+        const targetLengthForLines = isVertical ? MAX_CONTENT_WIDTH_PX : MAX_CONTENT_HEIGHT_PX
+        // ページ全体のサイズを行数で割ることで、10行指定なら行間が広く、20行なら狭くなります
+        lineHeightPx = Math.floor(targetLengthForLines / gridSettings.lines)
+    }
+
+    // 3. 実際のコンテンツエリアサイズを確定
+    // 計算された「マスサイズ」と「行サイズ」を積み上げたものをエディタのサイズとします
+    const actualContentWidth = isVertical
+        ? lineHeightPx * gridSettings.lines // 縦書きの幅 ＝ 行幅 × 行数
+        : cellSizeInt * gridSettings.chars  // 横書きの幅 ＝ 文字幅 × 文字数
+
+    const actualContentHeight = isVertical
+        ? cellSizeInt * gridSettings.chars  // 縦書きの高さ ＝ 文字高 × 文字数
+        : lineHeightPx * gridSettings.lines // 横書きの高さ ＝ 行高 × 行数
+
+    // 4. フォントサイズと文字間隔の決定
     const effectiveFontSize = isGenkoMode
-        ? Math.floor(exactCellSize - cellPadding)
+        ? cellSizeInt - cellPadding
         : userFontSize
 
-    // 文字間隔
     const exactLetterSpacing = isGenkoMode
-        ? exactCellSize - effectiveFontSize
+        ? cellSizeInt - effectiveFontSize
         : 0
 
-    // 文字をマスの真ん中に置くためのズレ量 (半マス分)
-    const halfGap = isGenkoMode ? (exactCellSize - effectiveFontSize) / 2 : 0
-
-    // 行の高さ計算
-    const lineHeightRatio = 1.75
-    const lineHeightPx = Math.max(effectiveFontSize * lineHeightRatio, exactCellSize + 2)
+    // 文字をマスの真ん中に置くための調整
+    const halfGap = isGenkoMode ? Math.floor((cellSizeInt - effectiveFontSize) / 2) : 0
 
     // 背景生成ロジック
     const getGenkoBackground = () => {
         const lineColor = '#8bc34a'
         const outlineColor = '#ccc'
-
-        // 視覚調整
         const adjustmentY = -2
 
         switch (genkoMode) {
             case 'grid': // マス目
-                const boxSize = exactCellSize
+                const boxSize = cellSizeInt
+                // 行の高さ(lineHeightPx)が大きい場合、マス(boxSize)は中央に配置される
+
                 let svgString = ''
                 let bgSize = ''
 
                 if (isVertical) {
                     const width = lineHeightPx
-                    const height = exactCellSize
-                    const offsetX = (lineHeightPx - exactCellSize) / 2
+                    const height = cellSizeInt
+                    // 行幅の中でマスを中央寄せ
+                    const offsetX = Math.floor((lineHeightPx - cellSizeInt) / 2)
 
                     svgString = `
                         <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -158,11 +180,12 @@ const TiptapEditor = () => {
                                   fill="none" stroke="${lineColor}" stroke-width="1"/>
                         </svg>
                     `
-                    bgSize = `${lineHeightPx}px ${exactCellSize}px`
+                    bgSize = `${lineHeightPx}px ${cellSizeInt}px`
                 } else {
-                    const width = exactCellSize
+                    const width = cellSizeInt
                     const height = lineHeightPx
-                    const offsetY = (lineHeightPx - exactCellSize) / 2
+                    // 行高の中でマスを中央寄せ
+                    const offsetY = Math.floor((lineHeightPx - cellSizeInt) / 2)
 
                     svgString = `
                         <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -170,7 +193,7 @@ const TiptapEditor = () => {
                                   fill="none" stroke="${lineColor}" stroke-width="1"/>
                         </svg>
                     `
-                    bgSize = `${exactCellSize}px ${lineHeightPx}px`
+                    bgSize = `${cellSizeInt}px ${lineHeightPx}px`
                 }
 
                 const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svgString.replace(/\s+/g, ' ').trim())}`
@@ -205,68 +228,107 @@ const TiptapEditor = () => {
 
     const backgroundStyle = getGenkoBackground()
 
-    // 4. エディタ領域のスタイル適用
+    // 5. エディタ領域のスタイル適用
     const editorStyle = isVertical
         ? {
             // ■ 縦書き
             writingMode: 'vertical-rl' as const,
 
-            // content-boxにより、このheightは「中身の文字が入るエリア」だけを指すようになる
-            height: isGenkoMode ? `${exactCellSize * gridSettings.chars}px` : 'auto',
-            minWidth: isGenkoMode ? `${lineHeightPx * gridSettings.lines}px` : '100%',
-            minHeight: isGenkoMode ? 'auto' : `${CONTENT_HEIGHT_PX}px`,
+            // 行数計算の結果 + 1pxの余裕
+            height: isGenkoMode ? `${actualContentHeight + 1}px` : 'auto',
+            minWidth: isGenkoMode ? `${actualContentWidth}px` : '100%', // ここも計算値を使用
+            minHeight: isGenkoMode ? 'auto' : `${MAX_CONTENT_HEIGHT_PX}px`,
 
             fontSize: `${effectiveFontSize}px`,
             lineHeight: `${lineHeightPx}px`,
             letterSpacing: isGenkoMode ? `${exactLetterSpacing}px` : 'normal',
 
-            // ★修正: border-box から content-box へ変更
-            // これで「borderの幅」がサイズ計算から除外され、文字エリアが狭くなるのを防ぎます
             padding: 0,
             boxSizing: 'content-box' as const,
-
             margin: '50px 50px 50px auto',
             wordBreak: 'break-all' as const,
+
+            fontFeatureSettings: '"palt" 0',
+            fontKerning: 'none',
+            fontVariantEastAsian: 'full-width',
+            fontVariantNumeric: 'tabular-nums',
+            fontFamily: '"MS Gothic", "Hiragino Kaku Gothic ProN", monospace',
         }
         : {
             // ■ 横書き
             writingMode: 'horizontal-tb' as const,
 
-            // content-boxにより、このwidthは「中身の文字が入るエリア」だけを指すようになる
-            width: isGenkoMode ? `${exactCellSize * gridSettings.chars}px` : '100%',
-            maxWidth: isGenkoMode ? 'none' : `${CONTENT_WIDTH_PX}px`,
-            minHeight: isGenkoMode ? `${lineHeightPx * gridSettings.lines}px` : `${CONTENT_HEIGHT_PX}px`,
+            width: isGenkoMode ? `${actualContentWidth + 1}px` : '100%',
+            maxWidth: isGenkoMode ? 'none' : `${MAX_CONTENT_WIDTH_PX}px`,
+            // 行数計算の結果を使用
+            minHeight: isGenkoMode ? `${actualContentHeight}px` : `${MAX_CONTENT_HEIGHT_PX}px`,
 
             fontSize: `${effectiveFontSize}px`,
             lineHeight: `${lineHeightPx}px`,
             letterSpacing: isGenkoMode ? `${exactLetterSpacing}px` : 'normal',
 
-            // ★修正: border-box から content-box へ変更
             padding: 0,
             boxSizing: 'content-box' as const,
-
             margin: '50px auto',
             wordBreak: 'break-all' as const,
-        }
 
-    if (!editor) return null
+            fontFeatureSettings: '"palt" 0',
+            fontKerning: 'none',
+            fontVariantEastAsian: 'full-width',
+            fontVariantNumeric: 'tabular-nums',
+            fontFamily: isGenkoMode
+                ? '"MS Gothic", "Hiragino Kaku Gothic ProN", monospace'
+                : '"Inter", "MS Mincho", sans-serif',
+        }
 
     return (
         <div className="editor-container">
-            {/* ... (モーダル・メニューバーは変更なし) ... */}
+            {/* ... (モーダル以外は変更なし) ... */}
             {showSettingsModal && (
                 <div className="modal-overlay">
                     <div className="modal-content">
                         <h3>ページ設定 (Page Setup)</h3>
                         <form onSubmit={applyGridSettings}>
-                            <div className="input-group">
-                                <label>行の文字数 (Chars per line):</label>
-                                <input name="chars" type="number" defaultValue={gridSettings.chars} min="10" max="100" />
-                            </div>
-                            <div className="input-group">
-                                <label>ページの行数 (Lines per page):</label>
-                                <input name="lines" type="number" defaultValue={gridSettings.lines} min="5" max="100" />
-                            </div>
+
+                            {genkoMode === 'grid' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div style={{ marginBottom: '10px', fontSize: '14px', color: '#555' }}>
+                                        原稿用紙モード (Grid Mode)
+                                    </div>
+                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                        <input
+                                            type="radio"
+                                            name="gridPreset"
+                                            value="20x20"
+                                            defaultChecked={gridSettings.chars === 20 && gridSettings.lines === 20}
+                                            style={{ marginRight: '10px' }}
+                                        />
+                                        <span>400字詰 (20字 × 20行)</span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                        <input
+                                            type="radio"
+                                            name="gridPreset"
+                                            value="20x10"
+                                            defaultChecked={gridSettings.chars === 20 && gridSettings.lines === 10}
+                                            style={{ marginRight: '10px' }}
+                                        />
+                                        <span>200字詰 (20字 × 10行)</span>
+                                    </label>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="input-group">
+                                        <label>行の文字数 (Chars per line):</label>
+                                        <input name="chars" type="number" defaultValue={gridSettings.chars} min="10" max="100" />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>ページの行数 (Lines per page):</label>
+                                        <input name="lines" type="number" defaultValue={gridSettings.lines} min="5" max="100" />
+                                    </div>
+                                </>
+                            )}
+
                             <div className="modal-actions">
                                 <button type="button" onClick={() => setShowSettingsModal(false)}>Cancel</button>
                                 <button type="submit" className="primary">OK</button>
