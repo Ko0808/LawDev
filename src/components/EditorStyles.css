@@ -265,3 +265,67 @@ body {
 .modal-actions button.primary:hover {
     background-color: #005a9e;
 }
+
+/* ---------------------------------------------------------
+   印刷用スタイル (Print Styles)
+   editor-paper だけを印刷するように調整します
+--------------------------------------------------------- */
+@media print {
+
+    /* UIパーツを非表示にする */
+    .menu-bar,
+    .toolbar,
+    .modal-overlay {
+        display: none !important;
+    }
+
+    /* レイアウトコンテナの制限を解除 */
+    html,
+    body,
+    #root,
+    .editor-container,
+    .editor-workspace {
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+        background-color: white !important;
+        display: block !important;
+        position: relative !important;
+    }
+
+    .editor-workspace {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* editor-paper のスタイル調整 */
+    .editor-paper {
+        margin: 0 !important;
+        box-shadow: none !important;
+        /* 画面上のズームをリセットして原寸大(設定サイズ)で印刷 */
+        zoom: 1 !important;
+
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        overflow: visible !important;
+
+        /* ページ分割設定 */
+        page-break-after: always;
+        break-inside: avoid;
+    }
+
+    /* 内側のコンテンツも確実に表示 */
+    .editor-layout-area,
+    .ProseMirror {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* 背景や余白設定 */
+    @page {
+        margin: 0;
+        size: auto;
+    }
+}
