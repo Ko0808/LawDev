@@ -17,6 +17,7 @@ const TiptapEditor = () => {
     const [gridSettings, setGridSettings] = useState({ chars: 20, lines: 20 })
     const [showSettingsModal, setShowSettingsModal] = useState(false)
     const [genkoMode, setGenkoMode] = useState<'none' | 'grid' | 'line' | 'outline'>('line')
+    const [zoomLevel, setZoomLevel] = useState(100) // ズーム倍率 (%)
 
     // エディタ設定
     const editor = useEditor({
@@ -409,6 +410,20 @@ const TiptapEditor = () => {
                         title="文字色を変更"
                     />
                 </div>
+
+                <select
+                    className="toolbar-select"
+                    onChange={(e) => setZoomLevel(Number(e.target.value))}
+                    value={zoomLevel}
+                    title="Zoom"
+                >
+                    <option value="50">50%</option>
+                    <option value="75">75%</option>
+                    <option value="100">100%</option>
+                    <option value="125">125%</option>
+                    <option value="150">150%</option>
+                    <option value="200">200%</option>
+                </select>
                 <div className="divider" style={{ width: '1px', background: '#ccc', margin: '0 10px' }}></div>
                 <button onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''} style={{ fontWeight: 'bold' }}>B</button>
                 <button onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} className={editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}>H1</button>
@@ -416,8 +431,26 @@ const TiptapEditor = () => {
             </div>
 
             {/* --- 作業エリア (Workspace) --- */}
-            <div className={`editor-workspace ${isVertical ? 'vertical-mode' : ''}`} onClick={closeMenu}>
-                <div className="editor-paper">
+            <div
+                className={`editor-workspace ${isVertical ? 'vertical-mode' : ''}`}
+                onClick={closeMenu}
+                onWheel={(e) => {
+                    if (e.ctrlKey) {
+                        e.preventDefault()
+                        const delta = e.deltaY > 0 ? -10 : 10
+                        setZoomLevel(prev => {
+                            const newLevel = prev + delta
+                            // 50% 〜 200% の範囲に制限
+                            return Math.min(Math.max(newLevel, 50), 200)
+                        })
+                    }
+                }}
+            >
+                <div
+                    className="editor-paper"
+                    // @ts-ignore
+                    style={{ zoom: zoomLevel / 100 }}
+                >
                     <div
                         className="editor-layout-area"
                         style={{
