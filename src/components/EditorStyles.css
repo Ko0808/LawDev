@@ -1,8 +1,7 @@
-/* components/EditorStyles.css */
+/* src/components/EditorStyles.css */
 
 /* アプリ全体の背景 */
 body {
-    background-color: #f3f3f3;
     margin: 0;
     font-family: sans-serif;
 }
@@ -10,7 +9,35 @@ body {
 .editor-container {
     display: flex;
     flex-direction: column;
+    width: 100vw;
     height: 100vh;
+
+    /* ★修正: visible から hidden に変更 */
+    /* これでアプリの外側にはみ出すのを防ぎます */
+    overflow: hidden;
+}
+
+.editor-workspace {
+    flex: 1;
+    background-color: #f3f3f3;
+
+    /* ★修正: visible から auto に変更 */
+    /* これで「このエリアの中で」スクロールバーが出るようになります */
+    overflow: auto;
+
+    justify-content: center;
+    align-items: flex-start;
+
+    display: flex;
+    min-height: 0;
+    padding: 30px 0;
+}
+
+.editor-workspace.vertical-mode {
+    direction: rtl;
+    /* スクロールバーを左に */
+    justify-content: flex-start;
+    /* RTLなので「右側」がスタート地点になる */
 }
 
 /* ツールバー */
@@ -18,22 +45,23 @@ body {
     background: #fff;
     padding: 10px;
     border-bottom: 1px solid #ccc;
-    display: flex;
     gap: 10px;
     position: sticky;
     top: 0;
     z-index: 10;
 }
 
-.toolbar button {
+.toolbar button,
+.toolbar select {
     padding: 5px 10px;
     cursor: pointer;
-    background: none;
-    border: 1px solid transparent;
+    background: white;
+    border: 1px solid #ccc;
     border-radius: 4px;
 }
 
-.toolbar button:hover {
+.toolbar button:hover,
+.toolbar select:hover {
     background-color: #eee;
 }
 
@@ -42,49 +70,84 @@ body {
     color: #fff;
 }
 
-/* エディタ部分（A4用紙風） */
-.editor-content-wrapper {
-    flex: 1;
-    padding: 40px;
-    overflow-y: auto;
-    display: flex;
-    justify-content: center;
+/* 紙と版面のスタイル定義 */
+/* 1. 紙 (Paper): A4サイズ固定の白い箱 */
+.editor-paper {
+    background-color: white;
+
+    /* 中身（文字数・行数）に合わせてサイズが決まるようにする */
+    display: inline-block;
+
+    /* ※JS側で計算している場合はそちらが優先されますが、念のため */
+    min-width: 210mm;
+    min-height: 297mm;
+
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: visible;
+    flex-shrink: 0;
+
+    /* 余白リセット */
+    margin: 0;
 }
 
+/* 2. 版面 (Layout Area): 設定した文字数・行数分のサイズを持つエリア */
+.editor-layout-area {
+    margin: 0 auto;
+
+    box-sizing: content-box;
+}
+
+
+/* ---------------------------------------------------------
+   Tiptap本体 (ProseMirror) の調整
+   ※ここも重要：以前の「width: 210mm」などの固定設定を消しています
+--------------------------------------------------------- */
 .ProseMirror {
-    background: white;
-    width: 210mm;
-    /* A4幅 */
-    min-height: 297mm;
-    padding: 20mm;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     outline: none;
     box-sizing: border-box;
+    min-height: 100%;
+
+    /* 背景を透明にして、親要素(.editor-layout-area)の罫線が見えるようにする */
+    background-color: transparent !important;
 }
 
 .ProseMirror p {
-    margin-top: 0;
-    line-height: 1.6;
+    margin: 0;
+    line-height: inherit;
+    /* line-heightは親要素から継承させるので指定しない */
 }
 
-/* --- 以下を追記 --- */
 
-/* メニューバー（最上部） */
+/* ---------------------------------------------------------
+   メニューバー・モーダルなど (変更なし)
+--------------------------------------------------------- */
+.menu-bar,
+.toolbar {
+    /* 幅いっぱいにする */
+    width: 100%;
+
+    /* 中身は左揃え */
+    display: flex;
+    justify-content: flex-start;
+    /* 左寄せ */
+    box-sizing: border-box;
+    /* paddingを含めて幅計算 */
+}
+
+/* メニューバー */
 .menu-bar {
     background-color: #f3f3f3;
     padding: 5px 10px;
     border-bottom: 1px solid #ccc;
-    display: flex;
     gap: 15px;
     font-size: 14px;
 }
 
 .menu-item {
     position: relative;
-    /* ドロップダウンの基準点 */
 }
 
-/* "File" などのボタン */
 .menu-trigger {
     background: none;
     border: none;
@@ -93,11 +156,11 @@ body {
     border-radius: 4px;
 }
 
-.menu-trigger:hover {
+.menu-trigger:hover,
+.menu-trigger.active {
     background-color: #e0e0e0;
 }
 
-/* ドロップダウンメニュー本体 */
 .dropdown-menu {
     position: absolute;
     top: 100%;
@@ -125,4 +188,144 @@ body {
 
 .dropdown-menu button:hover {
     background-color: #f0f0f0;
+}
+
+/* モーダル */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-actions button {
+    padding: 8px 16px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 4px;
+}
+
+.modal-actions button.primary {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+}
+
+.modal-actions button:hover {
+    background-color: #f0f0f0;
+}
+
+.modal-actions button.primary:hover {
+    background-color: #005a9e;
+}
+
+/* ---------------------------------------------------------
+   印刷用スタイル (Print Styles)
+   editor-paper だけを印刷するように調整します
+--------------------------------------------------------- */
+@media print {
+
+    /* UIパーツを非表示にする */
+    .menu-bar,
+    .toolbar,
+    .modal-overlay {
+        display: none !important;
+    }
+
+    /* レイアウトコンテナの制限を解除 */
+    html,
+    body,
+    #root,
+    .editor-container,
+    .editor-workspace {
+        height: auto !important;
+        width: 100% !important;
+        overflow: visible !important;
+        background-color: white !important;
+        display: block !important;
+        position: relative !important;
+    }
+
+    .editor-workspace {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* editor-paper のスタイル調整 */
+    .editor-paper {
+        margin: 0 !important;
+        box-shadow: none !important;
+        /* 画面上のズームをリセットして原寸大(設定サイズ)で印刷 */
+        zoom: 1 !important;
+
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        overflow: visible !important;
+
+        /* ページ分割設定 */
+        page-break-after: always;
+        break-inside: avoid;
+    }
+
+    /* 内側のコンテンツも確実に表示 */
+    .editor-layout-area,
+    .ProseMirror {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* 背景や余白設定 */
+    @page {
+        margin: 0;
+        size: auto;
+    }
 }
